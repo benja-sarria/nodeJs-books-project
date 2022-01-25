@@ -20,7 +20,10 @@ export class Author {
     fullName!: string;
 
     @Field((type) => [Book], { nullable: true })
-    @OneToMany(() => Book, (book) => book.author, { nullable: true })
+    @OneToMany(() => Book, (book) => book.author, {
+        nullable: true,
+        onDelete: "NO ACTION",
+    })
     books!: Book[];
 
     @Field(() => String)
