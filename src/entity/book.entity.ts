@@ -7,6 +7,7 @@ import {
 } from "typeorm";
 import { Author } from "./author.entity";
 import { Field, ObjectType } from "type-graphql";
+import { User } from "./user.entity";
 
 @ObjectType()
 @Entity()
@@ -26,4 +27,8 @@ export class Book {
     @Field()
     @CreateDateColumn({ type: "timestamp" })
     createdAt!: string;
+
+    @Field()
+    @ManyToOne(() => User, (user) => user.loanedBooks)
+    isLoaned!: boolean;
 }
