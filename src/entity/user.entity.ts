@@ -22,7 +22,7 @@ export class User {
     fullName!: string;
 
     @Field()
-    @Column()
+    @Column({ unique: true })
     email!: string;
 
     @Field()
