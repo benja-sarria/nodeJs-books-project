@@ -29,6 +29,7 @@ export class Book {
     createdAt!: string;
 
     @Field()
+    @Column({ default: false })
     @ManyToOne(() => User, (user) => user.loanedBooks)
     isLoaned!: boolean;
 }

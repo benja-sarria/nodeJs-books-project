@@ -13,6 +13,7 @@ import { Book } from "../entity/book.entity";
 import { Author } from "../entity/author.entity";
 import { Length } from "class-validator";
 import { IContext, isAuth } from "../middlewares/auth.middleware";
+import { ShowLoanedBooks } from "./author.resolver";
 
 @InputType()
 class BookInput {
@@ -48,6 +49,16 @@ class BookUpdateParsedInput {
 class BookIdInput {
     @Field(() => Number)
     id!: number;
+}
+@InputType()
+class BookTitleInput {
+    @Field(() => String)
+    title!: string;
+}
+@InputType()
+class BookAuthorInput {
+    @Field(() => String)
+    fullName!: string;
 }
 
 // @Resolver() es un decorador experimental
@@ -94,19 +105,33 @@ export class BookResolver {
 
     @Query(() => [Book])
     @UseMiddleware(isAuth)
-    async getAllBooks(): Promise<Book[]> {
+    async getAllBooks(
+        @Arg("showLoanedBooks", () => ShowLoanedBooks)
+        showLoanedBooks: ShowLoanedBooks
+    ): Promise<Book[]> {
         try {
-            return await this.bookRepository.find({
+            const allBooks = await this.bookRepository.find({
                 relations: ["author", "author.books"],
             });
+
+            if (showLoanedBooks.showLoanedBooks) {
+                return allBooks;
+            }
+
+            const filteredBooks = allBooks.filter((book) => !book.isLoaned);
+
+            return filteredBooks;
         } catch (error: any) {
             throw new Error(error.message);
         }
     }
 
     @Query(() => Book)
+    @UseMiddleware(isAuth)
     async getBookById(
-        @Arg("input", () => BookIdInput) input: BookIdInput
+        @Arg("input", () => BookIdInput) input: BookIdInput,
+        @Arg("showLoanedBooks", () => ShowLoanedBooks)
+        showLoanedBooks: ShowLoanedBooks
     ): Promise<Book | undefined> {
         try {
             const book = await this.bookRepository.findOne(input.id, {
@@ -117,13 +142,110 @@ export class BookResolver {
                 error.message = "Book not found.";
                 throw error;
             }
+
+            if (showLoanedBooks.showLoanedBooks) {
+                return book;
+            }
+
+            if (book.isLoaned) {
+                const error = new Error();
+                error.message = "Book is already loaned";
+                throw error;
+            }
+
             return book;
         } catch (error: any) {
             throw new Error(error.message);
         }
     }
 
+    @Query(() => [Book])
+    @UseMiddleware(isAuth)
+    async getBookByTitle(
+        @Arg("input", () => BookTitleInput) input: BookTitleInput,
+        @Arg("showLoanedBooks", () => ShowLoanedBooks)
+        showLoanedBooks: ShowLoanedBooks
+    ): Promise<Book[] | undefined> {
+        try {
+            const allBooks = await this.bookRepository.find({
+                relations: ["author", "author.books"],
+            });
+
+            if (showLoanedBooks.showLoanedBooks) {
+                const filteredBooks = allBooks.filter((book) => {
+                    return book.title
+                        .toLowerCase()
+                        .includes(input.title.toLowerCase());
+                });
+                return filteredBooks;
+            }
+
+            const filteredBooks = allBooks.filter((book) => {
+                return (
+                    book.title
+                        .toLowerCase()
+                        .includes(input.title.toLowerCase()) && !book.isLoaned
+                );
+            });
+
+            if (filteredBooks.length === 0) {
+                const error = new Error();
+                error.message =
+                    "We couldn't find any available books with that name";
+                throw error;
+            }
+
+            return filteredBooks;
+        } catch (error: any) {
+            throw new Error(error.message);
+        }
+    }
+
+    @Query(() => [Book])
+    @UseMiddleware(isAuth)
+    async getBookByAuthor(
+        @Arg("input", () => BookAuthorInput) input: BookAuthorInput,
+        @Arg("showLoanedBooks", () => ShowLoanedBooks)
+        showLoanedBooks: ShowLoanedBooks
+    ): Promise<Book[] | undefined> {
+        try {
+            const allBooks = await this.bookRepository.find({
+                relations: ["author", "author.books"],
+            });
+
+            if (showLoanedBooks.showLoanedBooks) {
+                const filteredBooks = allBooks.filter((book) => {
+                    return book.author.fullName
+                        .toLowerCase()
+                        .includes(input.fullName.toLowerCase());
+                });
+                return filteredBooks;
+            }
+
+            const filteredBooks = allBooks.filter((book) => {
+                return (
+                    book.author.fullName
+                        .toLowerCase()
+                        .includes(input.fullName.toLowerCase()) &&
+                    !book.isLoaned
+                );
+            });
+
+            if (filteredBooks.length === 0) {
+                const error = new Error();
+                error.message =
+                    "We couldn't find any available books for that Author";
+                throw error;
+            }
+
+            return filteredBooks;
+        } catch (error: any) {
+            throw new Error(error.message);
+        }
+    }
+
     @Mutation(() => Boolean)
+    @UseMiddleware(isAuth)
     async updateBookById(
         @Arg("bookId", () => BookIdInput) bookId: BookIdInput,
         @Arg("input", () => BookUpdateInput) input: BookUpdateInput
@@ -140,6 +262,7 @@ export class BookResolver {
     }
 
     @Mutation(() => Boolean)
+    @UseMiddleware(isAuth)
     async deleteBook(
         @Arg("bookId", () => BookIdInput) bookId: BookIdInput
     ): Promise<Boolean> {
