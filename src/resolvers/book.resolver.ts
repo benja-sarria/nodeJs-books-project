@@ -14,6 +14,8 @@ import { Author } from "../entity/author.entity";
 import { Length } from "class-validator";
 import { IContext, isAuth } from "../middlewares/auth.middleware";
 import { ShowLoanedBooks } from "./author.resolver";
+import { User } from "../entity/user.entity";
+import { LoanedBook } from "../entity/loanedBook.entity";
 
 @InputType()
 class BookInput {
@@ -60,16 +62,31 @@ class BookAuthorInput {
     @Field(() => String)
     fullName!: string;
 }
+@InputType()
+class loanBookInput {
+    @Field(() => String, { nullable: true })
+    title!: string;
+
+    @Field(() => Number, { nullable: true })
+    bookId!: number;
+
+    @Field(() => Number)
+    userId!: number;
+}
 
 // @Resolver() es un decorador experimental
 @Resolver()
 export class BookResolver {
     bookRepository: Repository<Book>;
     authorRepository: Repository<Author>;
+    userRepository: Repository<User>;
+    loanedBooksRepository: Repository<LoanedBook>;
 
     constructor() {
         this.bookRepository = getRepository(Book);
         this.authorRepository = getRepository(Author);
+        this.userRepository = getRepository(User);
+        this.loanedBooksRepository = getRepository(LoanedBook);
     }
 
     @Mutation(() => Book)
@@ -283,6 +300,156 @@ export class BookResolver {
             await this.bookRepository.delete(bookId.id);
 
             return true;
+        } catch (error: any) {
+            throw new Error(error.message);
+        }
+    }
+
+    @Mutation(() => Book)
+    @UseMiddleware(isAuth)
+    async loanBook(@Arg("input", () => loanBookInput) input: loanBookInput) {
+        try {
+            if (!input.title && !input.bookId) {
+                const error = new Error();
+                error.message =
+                    "It's mandatory to insert a Book ID or a Book Title in order for us to perform the search. Pelase, try again.";
+                throw error;
+            }
+            const allBooks = await this.bookRepository.find({
+                relations: ["author", "author.books"],
+            });
+
+            const currentUser = await this.userRepository.findOne({
+                id: input.userId,
+            });
+
+            if (input.bookId) {
+                const book = allBooks.filter((book) => {
+                    return book.id === input.bookId && !book.isLoaned;
+                });
+
+                if (book.length === 0) {
+                    const error = new Error();
+                    error.message =
+                        "The book you're trying to loan isn't available";
+                    throw error;
+                }
+
+                const userLoanedBooks = await this.loanedBooksRepository.find({
+                    where: { userId: currentUser?.id },
+                });
+
+                console.log(userLoanedBooks.length);
+
+                if (userLoanedBooks.length > 2) {
+                    const error = new Error();
+                    error.message =
+                        "We're sorry, you exceeded the maximum amount of books loaned. Please return some in order to loan more";
+                    throw error;
+                }
+
+                await this.loanedBooksRepository.insert({
+                    bookId: book[0].id,
+                    userId: currentUser?.id,
+                    title: book[0].title,
+                    author: book[0].author,
+                    loanDate: Date.now().toString(),
+                    loanExpireDate: (Date.now() + 604800000).toString(),
+                });
+
+                await this.bookRepository.save({
+                    id: book[0].id,
+                    isLoaned: true,
+                    loanDate: Date.now().toString(),
+                    loanExpireDate: (Date.now() + 604800000).toString(),
+                });
+
+                return book[0];
+            }
+
+            const book = allBooks.filter((book) => {
+                return (
+                    book.title.toLowerCase() === input.title.toLowerCase() &&
+                    !book.isLoaned
+                );
+            });
+
+            const bookExists = allBooks.some((book) => {
+                return (
+                    book.title
+                        .toLowerCase()
+                        .includes(input.title.toLowerCase()) && !book.isLoaned
+                );
+            });
+
+            if (book.length === 0) {
+                if (!bookExists) {
+                    const error = new Error();
+                    error.message =
+                        "The book you're trying to loan isn't available";
+                    throw error;
+                } else {
+                    const possibleBooks = allBooks.filter((book) => {
+                        return (
+                            book.title
+                                .toLowerCase()
+                                .includes(input.title.toLowerCase()) &&
+                            !book.isLoaned
+                        );
+                    });
+
+                    const possibleBooksNames = possibleBooks.map(
+                        (book) => `${book.title}, `
+                    );
+
+                    const message = possibleBooksNames.reduce(
+                        (acumulator, currentValue, currentIndex) => {
+                            return (acumulator += currentValue);
+                        },
+                        ""
+                    );
+
+                    const curatedMessage = message.substring(
+                        0,
+                        message.length - 2
+                    );
+
+                    const error = new Error();
+                    error.message = `We couldn't find any book by that name. Perhaps you refer to any of these? - ${curatedMessage} `;
+                    throw error;
+                }
+            }
+
+            const userLoanedBooks = await this.loanedBooksRepository.find({
+                where: { userId: currentUser?.id },
+            });
+
+            console.log(userLoanedBooks.length);
+
+            if (userLoanedBooks.length > 2) {
+                const error = new Error();
+                error.message =
+                    "We're sorry, you exceeded the maximum amount of books loaned. Please return some in order to loan more";
+                throw error;
+            }
+
+            await this.loanedBooksRepository.insert({
+                bookId: book[0].id,
+                userId: currentUser?.id,
+                title: book[0].title,
+                author: book[0].author,
+                loanDate: Date.now().toString(),
+                loanExpireDate: (Date.now() + 604800000).toString(),
+            });
+
+            await this.bookRepository.save({
+                id: book[0].id,
+                isLoaned: true,
+                loanDate: Date.now().toString(),
+                loanExpireDate: (Date.now() + 604800000).toString(),
+            });
+
+            return book[0];
         } catch (error: any) {
             throw new Error(error.message);
         }
