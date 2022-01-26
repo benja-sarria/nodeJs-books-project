@@ -339,8 +339,6 @@ export class BookResolver {
                     where: { userId: currentUser?.id },
                 });
 
-                console.log(userLoanedBooks.length);
-
                 if (userLoanedBooks.length > 2) {
                     const error = new Error();
                     error.message =
@@ -424,8 +422,6 @@ export class BookResolver {
                 where: { userId: currentUser?.id },
             });
 
-            console.log(userLoanedBooks.length);
-
             if (userLoanedBooks.length > 2) {
                 const error = new Error();
                 error.message =
@@ -450,6 +446,112 @@ export class BookResolver {
             });
 
             return book[0];
+        } catch (error: any) {
+            throw new Error(error.message);
+        }
+    }
+
+    @Mutation(() => Boolean)
+    @UseMiddleware(isAuth)
+    async returnBook(@Arg("input", () => loanBookInput) input: loanBookInput) {
+        try {
+            if (!input.title && !input.bookId) {
+                const error = new Error();
+                error.message =
+                    "It's mandatory to insert a Book ID or a Book Title in order for us to perform the search. Pelase, try again.";
+                throw error;
+            }
+            if (input.bookId) {
+                const loanedBook = await this.loanedBooksRepository.findOne(
+                    input.bookId
+                );
+                if (!loanedBook) {
+                    const error = new Error();
+                    error.message =
+                        "An error occurred trying to return the book";
+                    throw error;
+                }
+                if (loanedBook.userId !== input.userId) {
+                    const error = new Error();
+                    error.message = "You're not authorized to return this book";
+                    throw error;
+                }
+
+                await this.loanedBooksRepository.delete(input.bookId);
+
+                await this.bookRepository.save({
+                    id: input.bookId,
+                    isLoaned: false,
+                    loanDate: "",
+                    loanExpireDate: "",
+                });
+
+                return true;
+            }
+
+            const loanedBook = await this.loanedBooksRepository.findOne({
+                title: input.title,
+            });
+
+            console.log(loanedBook);
+
+            if (!loanedBook) {
+                const bookExists = (
+                    await this.loanedBooksRepository.find()
+                ).some((book) => {
+                    return (
+                        book.title
+                            .toLowerCase()
+                            .includes(input.title.toLowerCase()) &&
+                        book.userId === input.userId
+                    );
+                });
+                if (!bookExists) {
+                    const error = new Error();
+                    error.message =
+                        "We're sorry! We couldn't find any book due to return by that name";
+                    throw error;
+                }
+
+                const bookReferred = (
+                    await this.loanedBooksRepository.find()
+                ).filter((book) => {
+                    return (
+                        book.title
+                            .toLowerCase()
+                            .includes(input.title.toLowerCase()) &&
+                        book.userId === input.userId
+                    );
+                });
+
+                if (bookReferred) {
+                    const error = new Error();
+                    error.message = `Invalid book name. Perhaps you're trying to say: ${bookReferred[0].title}?`;
+                    throw error;
+                }
+
+                const error = new Error();
+                error.message = "An error occurred trying to return the book";
+                throw error;
+            }
+
+            if (loanedBook.userId !== input.userId) {
+                const error = new Error();
+                error.message = "You're not authorized to return this book";
+                throw error;
+            }
+
+            await this.loanedBooksRepository.delete({ title: input.title });
+
+            await this.bookRepository.save({
+                id: loanedBook.bookId,
+                title: input.title,
+                isLoaned: false,
+                loanDate: "",
+                loanExpireDate: "",
+            });
+
+            return true;
         } catch (error: any) {
             throw new Error(error.message);
         }
