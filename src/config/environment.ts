@@ -10,4 +10,8 @@ export const environment = {
     DB_PASSWORD: process.env.DB_PASSWORD,
     DB_DATABASE: process.env.DB_DATABASE,
     JWT_SECRET: process.env.JWT_SECRET || "Default",
+    MAILTRAP_HOST: process.env.MAILTRAP_HOST || "Localhost",
+    MAILTRAP_PORT: process.env.MAILTRAP_PORT || 2525,
+    MAILTRAP_AUTH_USER: process.env.MAILTRAP_AUTH_USER,
+    MAILTRAP_AUTH_PASS: process.env.MAILTRAP_AUTH_PASS,
 };

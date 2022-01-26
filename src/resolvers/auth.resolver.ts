@@ -12,6 +12,8 @@ import { Length, IsEmail } from "class-validator";
 import { hash, compareSync } from "bcryptjs";
 import { sign } from "jsonwebtoken";
 import { environment } from "../config/environment";
+import { sendVerificationEmail } from "../utils/sendEmail";
+import { createConfirmationUrl } from "../utils/createConfirmationUrl";
 
 @InputType()
 class UserInput {
@@ -81,9 +83,56 @@ export class AuthResolver {
                 fullName,
                 email,
                 password: hashedPassword,
+                loanedBooks: [],
+                isVerified: false,
             });
 
+            // Generamos la URL que va a contener el token de confirmación
+            const verifyUrl = await createConfirmationUrl(
+                newUser.identifiers[0].id
+            );
+
+            // Enviamos el email pasando la dirección y url como parámetros
+            await sendVerificationEmail(email, verifyUrl);
+
             return this.userRepository.findOne(newUser.identifiers[0].id);
+        } catch (error: any) {
+            throw new Error(error.message);
+        }
+    }
+
+    @Mutation(() => Boolean)
+    async confirmUserAccount(
+        @Arg("token") token: string
+    ): Promise<Boolean | undefined> {
+        try {
+            const userRepository = await getRepository(User);
+            const user = await userRepository.findOne({
+                where: {
+                    verificationUrl: token,
+                },
+            });
+            if (!user) {
+                const error = new Error();
+                error.message = "Confirmation token not found";
+                throw error;
+            }
+
+            if (user.isVerified) {
+                const error = new Error();
+                error.message = "User has already been confirmed";
+                throw error;
+            }
+
+            const userId = user.id;
+
+            await userRepository.save({
+                id: userId,
+                isVerified: true,
+                verificationUrl: "",
+            });
+
+            return true;
         } catch (error: any) {
             throw new Error(error.message);
         }
@@ -113,6 +162,12 @@ export class AuthResolver {
             if (!isValidPassword) {
                 const error = new Error();
                 error.message = "Invalid Credentials.";
+                throw error;
+            }
+
+            if (!userFound.isVerified) {
+                const error = new Error();
+                error.message = "User's email isn't verified yet";
                 throw error;
             }
 

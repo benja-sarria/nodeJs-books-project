@@ -3,10 +3,8 @@ import {
     Column,
     PrimaryGeneratedColumn,
     CreateDateColumn,
-    ManyToOne,
     OneToMany,
 } from "typeorm";
-import { Author } from "./author.entity";
 import { Field, ObjectType } from "type-graphql";
 import { Book } from "./book.entity";
 
@@ -39,4 +37,10 @@ export class User {
         onDelete: "NO ACTION",
     })
     loanedBooks!: Book[];
+
+    @Column("bool", { default: false })
+    isVerified?: boolean;
+
+    @Column({ default: "" })
+    verificationUrl!: string;
 }
