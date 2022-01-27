@@ -135,4 +135,30 @@ export class UserResolver {
             throw new Error(error.message);
         }
     }
+
+    @Mutation(() => Boolean)
+    async payFinePenalty(@Arg("userEmail") userEmail: string) {
+        try {
+            const currentUser = await this.userRepository.findOne({
+                where: {
+                    email: userEmail,
+                },
+            });
+
+            if (!currentUser?.isPenalized) {
+                const error = new Error();
+                error.message = "The user has no penalty to be lifted";
+                throw error;
+            }
+
+            await this.userRepository.save({
+                id: currentUser.id,
+                isPenalized: false,
+            });
+
+            return true;
+        } catch (error: any) {
+            throw new Error(error.message);
+        }
+    }
 }

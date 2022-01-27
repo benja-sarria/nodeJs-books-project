@@ -37,6 +37,13 @@ export const userEmailReminder = async () => {
 
         const fine = 500 * pastDueDateBooks.length;
 
+        if (pastDueDateBooks.length > 0) {
+            await userRespository.save({
+                id: user.id,
+                isPenalized: true,
+            });
+        }
+
         // send mail with defined transport object
         const info = await transporter.sendMail({
             from: "Book Administration <planetbooksproject@gmail.com>", // sender address

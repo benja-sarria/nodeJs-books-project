@@ -59,8 +59,6 @@ export const loansAdministrativeReport = (
                                 return user.id === book.userId;
                             });
 
-                            console.log(currentUser);
-
                             const bookDueDate = new Date(
                                 parseInt(book.loanExpireDate)
                             );

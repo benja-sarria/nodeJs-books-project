@@ -7,6 +7,7 @@ import {
     Query,
     UseMiddleware,
     Ctx,
+    ObjectType,
 } from "type-graphql";
 import { getRepository, Repository } from "typeorm";
 import { Book } from "../entity/book.entity";
@@ -72,6 +73,15 @@ class loanBookInput {
 
     @Field(() => Number)
     userId!: number;
+}
+
+@ObjectType()
+class ReturnBookResponse {
+    @Field(() => Boolean)
+    isReturned!: boolean;
+
+    @Field(() => String)
+    message!: string;
 }
 
 // @Resolver() es un decorador experimental
@@ -323,6 +333,13 @@ export class BookResolver {
                 id: input.userId,
             });
 
+            if (currentUser?.isPenalized) {
+                const error = new Error();
+                error.message =
+                    "We're sorry to inform that you can't take books on loan due to pending payment on penalties incurred regarding past due dates. Please contact the Administration to sort this out.";
+                throw error;
+            }
+
             if (input.bookId) {
                 const book = allBooks.filter((book) => {
                     return book.id === input.bookId && !book.isLoaned;
@@ -451,7 +468,7 @@ export class BookResolver {
         }
     }
 
-    @Mutation(() => Boolean)
+    @Mutation(() => ReturnBookResponse)
     @UseMiddleware(isAuth)
     async returnBook(@Arg("input", () => loanBookInput) input: loanBookInput) {
         try {
@@ -486,14 +503,40 @@ export class BookResolver {
                     loanExpireDate: "",
                 });
 
-                return true;
+                const currentDate = new Date(Date.now());
+                const dueDate = new Date(parseInt(loanedBook.loanExpireDate));
+
+                if (dueDate < currentDate) {
+                    await this.userRepository.save({
+                        id: loanedBook.userId,
+                        isPenalized: true,
+                    });
+
+                    // a future implementation could also send an email notifying the fine here
+
+                    return {
+                        isReturned: true,
+                        message: `The book has been returned past the due date. It should be returned on: ${dueDate.toLocaleDateString(
+                            "en-ar",
+                            {
+                                weekday: "long",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                            }
+                        )}. A fine of $500 must be paid, please contact administration to clear the penalty.`,
+                    };
+                }
+
+                return {
+                    isReturned: true,
+                    message: `The book has been returned correctly. Thanks again for choosing us!`,
+                };
             }
 
             const loanedBook = await this.loanedBooksRepository.findOne({
                 title: input.title,
             });
-
-            console.log(loanedBook);
 
             if (!loanedBook) {
                 const bookExists = (
@@ -550,6 +593,36 @@ export class BookResolver {
                 loanDate: "",
                 loanExpireDate: "",
             });
+
+            const currentDate = new Date(Date.now());
+            const dueDate = new Date(parseInt(loanedBook.loanExpireDate));
+
+            if (dueDate < currentDate) {
+                await this.userRepository.save({
+                    id: loanedBook.userId,
+                    isPenalized: true,
+                });
+
+                // a future implementation could also send an email notifying the fine here
+
+                return {
+                    isReturned: true,
+                    message: `The book has been returned past the due date. It should be returned on: ${dueDate.toLocaleDateString(
+                        "en-ar",
+                        {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                        }
+                    )}. A fine of $500 must be paid, please contact administration to clear the penalty.`,
+                };
+            }
+
+            return {
+                isReturned: true,
+                message: `The book has been returned correctly. Thanks again for choosing us!`,
+            };
 
             return true;
         } catch (error: any) {

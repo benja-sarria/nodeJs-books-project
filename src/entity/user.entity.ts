@@ -43,4 +43,8 @@ export class User {
 
     @Column({ default: "" })
     verificationUrl!: string;
+
+    @Field()
+    @Column({ default: false })
+    isPenalized!: boolean;
 }

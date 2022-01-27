@@ -11,11 +11,11 @@ const main = async () => {
     connect();
 
     // emailScheduler(`0 */1 * * * *`, userEmailReminder, "Loan due dates");
-    emailScheduler(
-        `0 */1 * * * *`,
-        administrationEmailReminder,
-        "Administration report"
-    );
+    // emailScheduler(
+    //     `0 */1 * * * *`,
+    //     administrationEmailReminder,
+    //     "Administrative report"
+    // );
 
     const port: number = 4000;
     const app = await startServer();
