@@ -10,12 +10,12 @@ const main = async () => {
     // Ejecutamos nuestra conexión con la DB
     connect();
 
-    // emailScheduler(`0 */1 * * * *`, userEmailReminder, "Loan due dates");
-    // emailScheduler(
-    //     `0 */1 * * * *`,
-    //     administrationEmailReminder,
-    //     "Administrative report"
-    // );
+    emailScheduler(`5 8 * * 0`, userEmailReminder, "Loan due dates");
+    emailScheduler(
+        `5 8 * * 0`,
+        administrationEmailReminder,
+        "Administrative report"
+    );
 
     const port: number = 4000;
     const app = await startServer();
