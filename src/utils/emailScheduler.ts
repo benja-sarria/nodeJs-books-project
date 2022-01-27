@@ -16,13 +16,13 @@ export const transporter = nodemailer.createTransport({
 });
 
 export const emailScheduler = async (
-    periodicity: number,
+    periodicity: string,
     callback: Function,
     reason: string
 ) => {
     console.log(`Scheduler reminder service started - Basis: ${reason}`);
 
-    cron.schedule(`0 */${periodicity} * * * *`, async () => {
+    cron.schedule(periodicity, async () => {
         callback();
     });
 };
